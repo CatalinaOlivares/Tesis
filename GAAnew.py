@@ -987,7 +987,7 @@ def crear_arreglo_instancias2(files):
   return instancias
 
 def leer_instancias2():
-    fileTrain = ["./prueba_instancias/att48.txt","./prueba_instancias/berlin52.txt","./prueba_instancias/eil51.txt","./prueba_instancias/pr76.txt","./prueba_instancias/st70.txt"]
+    #fileTrain = ["./prueba_instancias/att48.txt","./prueba_instancias/berlin52.txt","./prueba_instancias/eil51.txt","./prueba_instancias/pr76.txt","./prueba_instancias/st70.txt"]
     '''fileTrain = [    "./Matrices/a280.txt",
     "./Matrices/ch130.txt",
     "./Matrices/ch150.txt",
@@ -1001,7 +1001,7 @@ def leer_instancias2():
     "./Matrices/rd100.txt",
     "./Matrices/rd400.txt",
     "./Matrices/st70.txt"]'''
-    #fileTrain = ["./Matrices/pr152.txt","./Matrices/vm1084.txt"]
+    fileTrain = ["./Matrices/pr152.txt","./Matrices/vm1084.txt"]
     instancesTrain = crear_arreglo_instancias2(fileTrain)
     return instancesTrain
 
@@ -1455,27 +1455,6 @@ def evaluate_final_tree(env, tree):
     final_erp_avg, _, final_erp_totals, _ = calcular_erp_arreglo_instancias(test_instances)
     return final_erp_avg, final_erp_totals
 
-def clean_tree(node, max_depth=MAX_DEPTH):
-    """
-    Limpia el árbol y asegura que ningún nodo exceda la profundidad máxima.
-    """
-    if node is None or node.current_depth() >= max_depth:
-        print("Nodo inválido encontrado. Reemplazando con nodo terminal.")
-        return Node(type_='método', value='invert')
-
-    if node.type is None or node.value is None:
-        node.type = 'método'
-        node.value = 'invert'
-
-    if node.left:
-        node.left = clean_tree(node.left, max_depth)
-    if node.right:
-        node.right = clean_tree(node.right, max_depth)
-
-    return node
-
-
-
 
 import os
 import csv
@@ -1545,9 +1524,18 @@ if __name__ == '__main__':
     for iteration in range(ITERATIONS):
         print(f"\n===== Iniciando Experimento {iteration + 1} =====")
 
-        # Crear las instancias iniciales y el entorno
+       
+        # Crear una carpeta para guardar los modelos
+        model_save_dir = "./saved_models"
+        os.makedirs(model_save_dir, exist_ok=True)
+
+        # Generar una semilla única para el experimento actual
+        current_seed = random.randint(0, 1_000_000)
+
+        # Inicializar el entorno con la semilla
         initial_instances = leer_instancias2()
         env = TSPEnv(initial_instances)
+        observation, info = env.reset(seed=current_seed)
 
         # Crear el modelo DQN
         model = DQN(
@@ -1568,9 +1556,22 @@ if __name__ == '__main__':
         start_training_time = time.time()  # Inicio del tiempo de entrenamiento
         model.learn(total_timesteps=TIME_STEPS, callback=metrics_callback)  # Incluye el callback
         end_training_time = time.time()  # Fin del tiempo de entrenamiento
+        
+        # Guardar el modelo y la semilla
+        model_save_path = os.path.join(model_save_dir, f"TSP_model_seed_{current_seed}.zip")
+        model.save(model_save_path)
+        print(f"Modelo guardado en {model_save_path} con semilla {current_seed}")
+
+        
+        # Registrar la semilla en un archivo CSV
+        seed_log_path = os.path.join(model_save_dir, "seed_log.csv")
+        with open(seed_log_path, mode="a", newline="") as file:
+            writer = csv.writer(file)
+            writer.writerow([f"TSP_model_seed_{current_seed}.zip", current_seed])
+        print(f"Semilla registrada: {current_seed}")
+
         # Guardar el árbol final generado
         final_tree = env.current_root
-        #final_tree = clean_tree(final_tree) 
         print(f"Árbol final aprendido:\n{final_tree.to_string()}")
 
         # Evaluar el ERP final con el árbol aprendido
