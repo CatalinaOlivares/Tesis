@@ -877,6 +877,8 @@ def aplicate_mutation(root_node, mutation_index):
     return root_node
 
 
+
+
 #veo el timepo
 def calculate_erp(root, objetivos):
     distances = []
@@ -884,6 +886,7 @@ def calculate_erp(root, objetivos):
     erp_s_sum = 0
     n_instances = len(objetivos)
     objetivos_temp = clonar_arreglo_instancias(objetivos)
+    instance_times = []
     if root is None:
         for instance in objetivos_temp:
             print(f"Instance actual: {instance}")
@@ -892,9 +895,13 @@ def calculate_erp(root, objetivos):
             distances.append(instance.current_distance)
             erp_s_sum += erp_s_total
     else:
+        
         root_executable = root.get_executable_tree()
         for objetivo in objetivos_temp:
+            start_time_instance = time.time()
             root_executable.execute(objetivo)
+            end_time_instance = time.time()
+            instance_times.append(end_time_instance - start_time_instance)
         for instance in objetivos_temp:
             erp_s_total = abs(instance.optimal - instance.current_distance) / abs(instance.optimal)
             erp_s_totals.append(erp_s_total)
@@ -902,7 +909,18 @@ def calculate_erp(root, objetivos):
             erp_s_sum += erp_s_total
     erp_s_avg = erp_s_sum / n_instances
     print(f"ERP Calculado: {erp_s_avg}, Totales por Instancia: {erp_s_totals}")
+    print(f"Tiempos por Instancia: {instance_times}")
     return erp_s_avg, objetivos_temp, erp_s_totals, distances
+
+
+
+
+
+
+
+
+
+
 
 def execute_root(root,objetivos):
     obj = clonar_arreglo_instancias(objetivos)
@@ -911,20 +929,7 @@ def execute_root(root,objetivos):
         root_executable.execute(objetivo)
     return obj
 
-'''def crear_arreglo_instancias(files):
-  instancias = []
-  for f in files:
-    with open(f, 'r') as file:
-      lines = file.readlines()
-    # Procesamos las líneas
-    n = int(lines[1].strip()) #Modificar segun instancias
-    optimo = float(lines[0].strip()) #Modificar segun instancias
-    matrix = [list(map(float, line.split())) for line in lines[2:]]
-    instance = Instance(f,optimo,n,matrix)
-    instance.generate_initial_solution()
-    instance.get_current_distance()
-    instancias.append(instance)
-  return instancias'''
+
 def crear_arreglo_instancias(files):
     instancias = []
     for f in files:
@@ -988,20 +993,14 @@ def crear_arreglo_instancias2(files):
 
 def leer_instancias2():
     #fileTrain = ["./prueba_instancias/att48.txt","./prueba_instancias/berlin52.txt","./prueba_instancias/eil51.txt","./prueba_instancias/pr76.txt","./prueba_instancias/st70.txt"]
-    '''fileTrain = [    "./Matrices/a280.txt",
-    "./Matrices/ch130.txt",
-    "./Matrices/ch150.txt",
-    "./Matrices/eil101.txt",
-    "./Matrices/eil51.txt",
-    "./Matrices/eil76.txt",
-    "./Matrices/gil262.txt",
-    "./Matrices/gr48.txt",
-    "./Matrices/pa561.txt",
-    "./Matrices/rat575.txt",
-    "./Matrices/rd100.txt",
-    "./Matrices/rd400.txt",
-    "./Matrices/st70.txt"]'''
-    fileTrain = ["./Matrices/pr152.txt","./Matrices/vm1084.txt"]
+    fileTrain= [
+    "./Matrices/u1060.txt",
+    "./Matrices/rl1323.txt",
+    "./Matrices/rl1889.txt",
+]
+
+
+
     instancesTrain = crear_arreglo_instancias2(fileTrain)
     return instancesTrain
 
@@ -1505,7 +1504,7 @@ class MetricsCallback(BaseCallback):
         # Cerrar el archivo CSV al finalizar el entrenamiento
         self.csv_file.close()
 
-
+'''
 from sb3_contrib import QRDQN
 import torch
 if __name__ == '__main__':
@@ -1664,5 +1663,118 @@ final_erp_avg, _, final_erp_totals, distances = calculate_erp(env.current_root, 
 print("\nEvaluación Final del Árbol con Algoritmo Final:")
 print(f"ERP Promedio Final: {final_erp_avg:.6f}")
 print(f"ERPs por Instancia: {final_erp_totals}")
-print(f"Distancias por Instancia: {distances}")
+print(f"Distancias por Instancia: {distances}")'''
+# Construir el árbol
+import re
+from collections import deque
+def parse_algorithm(expression):
+    def parse_node(text, parent=None, index=0):
+        match = re.match(r'(\d+)\.([a-zA-Z_]+)\((.*)\)', text)
+        if not match:
+            return Node(type_='método', value=text.strip(), index=index, parent=parent)
 
+        node_index, value, children = match.groups()
+        children = children.strip()
+        node = Node(type_='función', value=value, index=int(node_index), parent=parent)
+
+        if children:
+            balance = 0
+            child_parts = []
+            current_part = []
+            for char in children:
+                if char == ',' and balance == 0:
+                    child_parts.append(''.join(current_part).strip())
+                    current_part = []
+                else:
+                    current_part.append(char)
+                    if char == '(':
+                        balance += 1
+                    elif char == ')':
+                        balance -= 1
+            if current_part:
+                child_parts.append(''.join(current_part).strip())
+
+            if len(child_parts) > 0:
+                node.left = parse_node(child_parts[0], parent=node, index=2 * int(node_index) + 1)
+            if len(child_parts) > 1:
+                node.right = parse_node(child_parts[1], parent=node, index=2 * int(node_index) + 2)
+
+        return node
+
+    root = parse_node(expression)
+    return root
+
+import time
+# Leer instancias para la evaluación
+initial_instances = leer_instancias2()
+
+# Lista de algoritmos con sus clusters
+algorithms = [
+    #("cluster2", "0.or(2.while(2.or(5.or(relocate, relocate), 6.and(opt2, opt2)), 2.if(5.and(opt2_2, invert), 6.if(invert, invert))), 1.and(1.while(3.and(invert, relocate), 4.while(invert, opt2_2)), 1.and(3.while(opt2, opt2), 4.while(opt2, opt2))))"),
+    ("cluster4", "0.and(2.while(2.or(5.and(opt2, invert), 6.while(relocate, swap)), 2.if(5.if(opt2, invert), 6.or(relocate, swap))), 1.while(1.or(3.and(relocate, invert), 4.while(relocate, opt2_2)), 1.or(3.or(opt2_2, opt2), 4.if(opt2, swap))))"),
+    ("cluster5", "0.and(2.if(2.while(5.while(opt2, relocate), 6.and(invert, opt2)), 2.if(5.and(opt2, swap), 6.if(relocate, swap))), 1.if(1.and(3.while(opt2_2, swap), 4.if(relocate, opt2_2)), 1.or(3.if(opt2, opt2_2), 4.while(opt2, invert))))"),
+    ("Grupo1", "0.while(2.while(2.or(5.if(relocate, opt2_2), 6.if(invert, opt2)), 2.or(5.and(swap, invert), 6.if(invert, relocate))), 1.and(1.and(3.or(swap, opt2_2), 4.and(opt2, opt2)), 1.if(3.and(invert, invert), 4.and(opt2_2, opt2_2))))"),
+    ("Grupo2", "0.and(2.and(2.while(5.and(swap, swap), 6.and(relocate, swap)), 2.and(5.if(opt2_2, opt2_2), 6.or(opt2, invert))), 1.if(1.or(3.while(relocate, invert), 4.and(invert, invert)), 1.while(3.if(opt2_2, relocate), 4.and(relocate, swap))))"),
+    ("Grupo3", "0.while(1.and(1.and(3.if(opt2_2, opt2), 4.and(opt2, swap)), 1.while(3.or(relocate, opt2), 4.or(relocate, invert))), 2.or(2.and(5.or(relocate, invert), 6.while(relocate, swap)), 2.and(5.or(swap, invert), 6.while(swap, swap))))"),
+    ("Grupo4", "0.while(1.while(1.and(3.while(relocate, swap), 4.if(opt2_2, opt2_2)), 1.or(3.or(swap, opt2), 4.if(opt2, relocate))), 2.and(2.and(5.and(invert, invert), 6.while(relocate, opt2_2)), 2.or(5.if(swap, swap), 6.if(swap, invert))))"),
+    ("Grupo5", "0.or(2.if(2.while(5.and(opt2, swap), 6.and(relocate, invert)), 2.if(5.while(swap, relocate), 6.or(relocate, opt2))), 1.and(1.or(3.if(invert, relocate), 4.while(opt2, opt2_2)), 1.while(3.or(relocate, opt2), 4.or(swap, relocate))))"),
+    ("Grupo6", "0.or(2.or(2.and(5.and(opt2, invert), 6.if(opt2_2, invert)), 2.or(5.while(opt2, opt2_2), 6.while(swap, relocate))), 1.and(1.while(3.and(swap, invert), 4.or(swap, opt2)), 1.and(3.while(relocate, relocate), 4.if(opt2, relocate))))"),
+
+
+]
+import gc
+# Procesar cada algoritmo
+for cluster, algorithm in algorithms:
+    # Tomar el tiempo inicial para este algoritmo
+    start_time_algo = time.time()
+
+    print(f"\nProcesando {cluster} con el siguiente algoritmo:\n{algorithm}")
+
+    # Construir el árbol a partir del algoritmo dado
+    root_node = parse_algorithm(algorithm)
+
+    # Calcular el ERP usando el árbol construido
+    erp_avg = 0
+    executed_instances = []
+    erp_totals = []
+    distances = []
+
+    for instance in initial_instances:
+        start_time_instance = time.time()  # Tiempo inicial de la instancia
+
+        # Aquí procesas cada instancia (simulación del cálculo)
+        result = calculate_erp(root_node, instance)  # Simulación
+        executed_instances.append(result)
+
+        end_time_instance = time.time()  # Tiempo final de la instancia
+        instance_time = end_time_instance - start_time_instance
+
+        print(f"Instancia procesada en {instance_time:.6f} segundos.")
+
+        # Liberar objetos temporales específicos de esta instancia
+        del result
+        gc.collect()  # Forzar recolección de basura
+
+    # Liberar objetos después de procesar todas las instancias para este algoritmo
+    del root_node
+    del executed_instances
+    del erp_totals
+    del distances
+    gc.collect()  # Forzar recolección de basura
+
+    # Tomar el tiempo final para este algoritmo
+    end_time_algo = time.time()
+
+    # Calcular el tiempo de ejecución para este algoritmo
+    execution_time_algo = end_time_algo - start_time_algo
+
+    # Imprimir los resultados para cada algoritmo
+    print("\nResultados de Evaluación del Árbol Construido:")
+    print(f"Cluster: {cluster}")
+    print(f"ERP Promedio: {erp_avg:.6f}")
+    print(f"Tiempo total de ejecución para {cluster}: {execution_time_algo:.6f} segundos")
+
+# Al final del procesamiento de todos los algoritmos, liberar todo lo restante
+del algorithms
+del initial_instances
+gc.collect()  # Forzar recolección de basura
